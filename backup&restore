@@ -1,0 +1,11 @@
+To perform a database dump in PostgreSQL, you can use the pg_dump command-line tool. Here's an example command that can be used to dump the entire hivemind_db database to a file:
+
+Copy code
+pg_dump hivemind_db > hivemind_db_dump.sql
+This command will create a SQL file called hivemind_db_dump.sql that contains all the SQL statements needed to recreate the hivemind_db database, including the schema and data in all the tables.
+
+To restore the database from the dump file, you can use the psql command-line tool:
+
+Copy code
+psql -d hivemind_db -f hivemind_db_dump.sql
+This command will read the SQL statements from the hivemind_db_dump.sql file and execute them to recreate the database, including all the data in the tables.

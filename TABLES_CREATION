@@ -1,0 +1,241 @@
+CREATE TABLE University (
+  university_name VARCHAR(50) PRIMARY KEY
+);
+
+CREATE TABLE Students (
+  student_id INT,
+  university_name VARCHAR(50)REFERENCES University(university_name), 
+  arrival_year INT,
+  completion_year INT,
+  PRIMARY KEY (university_name,student_id),
+  year_of_study INT
+);
+
+CREATE TABLE Lecturers (
+  lecturer_id INT,
+  university_name VARCHAR(50)REFERENCES University(university_name),
+  arrival_year INT,
+  PRIMARY KEY (university_name,lecturer_id) 
+); 
+
+CREATE TABLE SPersonal_info (
+  spersonal_info_id INT PRIMARY KEY,
+  student_id INT,
+  first_name VARCHAR(50),
+  middle_name VARCHAR(50),
+  last_name VARCHAR(50),
+  id_number VARCHAR(20),
+  district VARCHAR(100),
+  contact VARCHAR(50),
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id)
+);
+
+CREATE TABLE LPersonal_info (
+  lpersonal_info_id INT PRIMARY KEY,
+  lecturer_id INT,
+  first_name VARCHAR(50),
+  middle_name VARCHAR(50),
+  last_name VARCHAR(50),
+  id_number VARCHAR(20),
+  district VARCHAR(100),
+  contact VARCHAR(50),
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, lecturer_id) REFERENCES Lecturers(university_name, lecturer_id)
+);
+
+CREATE TABLE SAcademic_records (
+  sacademic_id INT PRIMARY KEY,
+  academic_year VARCHAR(40),
+  student_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id)
+);
+
+CREATE TABLE LAcademic_records (
+  lacademic_id INT PRIMARY KEY,
+  academic_year VARCHAR(40),
+  lecturer_id INT,
+  title VARCHAR(50),
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, lecturer_id) REFERENCES Lecturers(university_name, lecturer_id)
+);
+
+CREATE TABLE SCourses (
+  scourse_code INT PRIMARY KEY,
+  course_name VARCHAR(50),
+  credit_hours INT,
+  student_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id)
+);
+
+CREATE TABLE LCourses (
+  lcourse_code INT PRIMARY KEY,
+  course_name VARCHAR(50),
+  credit_hours INT,
+  lecturer_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name,lecturer_id) REFERENCES Lecturers(university_name,lecturer_id)
+);
+
+CREATE TABLE SPrograms (
+  sprogram_id INT PRIMARY KEY,
+  program_name VARCHAR(50),
+  scourse_code INT,
+  student_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id),
+  FOREIGN KEY (scourse_code) REFERENCES SCourses(scourse_code));
+
+CREATE TABLE LPrograms (
+  lprogram_id INT PRIMARY KEY,
+  program_name VARCHAR(50),
+  lcourse_code INT,
+  lecturer_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name,lecturer_id) REFERENCES Lecturers(university_name,lecturer_id),
+  FOREIGN KEY (lcourse_code) REFERENCES LCourses(lcourse_code)
+);
+
+CREATE TABLE Departments (
+  department_id INT PRIMARY KEY,
+  department_name VARCHAR(50),
+  sprogram_id INT,
+  lprogram_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name) REFERENCES University(university_name),
+  FOREIGN KEY (sprogram_id) REFERENCES SPrograms(sprogram_id),
+  FOREIGN KEY (lprogram_id) REFERENCES LPrograms(lprogram_id)
+);
+
+CREATE TABLE Faculties (
+  faculty_id INT PRIMARY KEY,
+  faculty_name VARCHAR(50),
+  department_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name) REFERENCES University(university_name),
+  FOREIGN KEY (department_id) REFERENCES Departments(department_id)
+);
+
+CREATE TABLE Results (
+  scourse_code INT REFERENCES SCourses(scourse_code),
+  student_id INT,
+  university_name VARCHAR(50),
+  grade VARCHAR(10),
+  lecture_comment VARCHAR(100),
+  lecturer_id INT,
+  PRIMARY KEY (scourse_code,student_id),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id),
+  FOREIGN KEY (university_name,lecturer_id) REFERENCES Lecturers(university_name,lecturer_id) 
+);
+
+CREATE TABLE Semesters (
+  semester_id INT PRIMARY KEY,
+  semester_name VARCHAR(50),
+  scourse_code INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name) REFERENCES University(university_name),
+  FOREIGN KEY (scourse_code) REFERENCES SCourses(scourse_code)
+);
+
+CREATE TABLE Results_reports (
+  results_rep_id INT PRIMARY KEY,
+  results_rep_name VARCHAR(50),
+  results_rep_date DATE,
+  pass_rate FLOAT,
+  fail_rate FLOAT,
+  explanation VARCHAR(200)
+);
+
+CREATE TABLE Budgets_reports (
+  budget_rep_id INT PRIMARY KEY,
+  budget_rep_name VARCHAR(50),
+  budget_rep_date DATE,
+  initial_amount FLOAT,
+  used_amount FLOAT,
+  balance FLOAT,
+  explanation VARCHAR(200)
+);
+
+CREATE TABLE Facilities_reports (
+  facilities_rep_id INT PRIMARY KEY,
+  facilities_rep_name VARCHAR(50),
+  facilities_rep_date DATE,
+  explanation VARCHAR(200)
+);
+
+CREATE TABLE Final_reports (
+  report_id INT PRIMARY KEY,
+  facilities_rep_id INT,
+  budget_rep_id INT,
+  results_rep_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (facilities_rep_id) REFERENCES Facilities_reports(facilities_rep_id),
+  FOREIGN KEY (budget_rep_id) REFERENCES Budgets_reports(budget_rep_id), 
+  FOREIGN KEY (results_rep_id) REFERENCES Results_reports(results_rep_id), 
+  FOREIGN KEY (university_name) REFERENCES University(university_name) );
+
+CREATE TABLE MOET ( 
+	minister_name VARCHAR(50) PRIMARY KEY, 
+	report_id INT, 
+	FOREIGN KEY (report_id) REFERENCES Final_reports(report_id) 
+);
+
+CREATE TABLE Library (
+	library_id INT PRIMARY KEY, 
+	library_name VARCHAR(50), 
+	university_name VARCHAR(50), 
+	catalog VARCHAR(50), 
+	usage_statistics VARCHAR(50), 
+	library_events VARCHAR(50), 
+	library_policies VARCHAR(50), 
+	location VARCHAR(50), 
+	FOREIGN KEY (university_name) REFERENCES University(university_name) 
+);
+
+CREATE TABLE Library_information (
+  library_inforid INT PRIMARY KEY,
+	student_id INT, 
+	lecturer_id INT, 
+  university_name VARCHAR(50),
+	books_borrowed INT, 
+	books_returned INT, 
+	dates DATE, 
+	library_id INT, 
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id),
+  FOREIGN KEY (university_name,lecturer_id) REFERENCES Lecturers(university_name,lecturer_id), 
+	FOREIGN KEY (library_id) REFERENCES Library(library_id) 
+);
+
+CREATE TABLE Funding (
+	funding_id INT PRIMARY KEY, 
+	student_id INT, 
+  university_name VARCHAR(50),
+	funding_name VARCHAR(50), 
+	fund_purpose VARCHAR(150), 
+	funding_duration DATE, 
+	funding_status BOOLEAN, 
+  FOREIGN KEY (university_name) REFERENCES University(university_name),
+	FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id), 
+	funding_details VARCHAR(500)
+);
+
+CREATE TABLE Projects(
+  project_id INT PRIMARY KEY,
+  project_name VARCHAR(65),
+  project_description VARCHAR(300),
+  university_name VARCHAR(50)
+);
+
+CREATE TABLE FProjects(
+  FProject_id INT PRIMARY KEY,
+  project_id INT,
+  student_id INT,
+  lecturer_id INT,
+  university_name VARCHAR(50),
+  FOREIGN KEY (university_name, student_id) REFERENCES Students(university_name, student_id),
+  FOREIGN KEY (university_name,lecturer_id) REFERENCES Lecturers(university_name,lecturer_id),
+  FOREIGN KEY (project_id) REFERENCES Projects(project_id)
+);
+

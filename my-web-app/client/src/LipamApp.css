@@ -1,0 +1,22 @@
+/* LipamApp.css */
+
+.LipamApp {
+    text-align: center;
+  }
+  
+  .LipamApp-logo {
+    animation: App-logo-spin infinite 10s linear;
+    height: 80px;
+  }
+  
+  .LipamApp-header {
+    background-color: #6e2800;
+    height: 44430px;
+    padding: 10px;
+    color: #ced8d1;
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+  
+  

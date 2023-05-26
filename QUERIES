@@ -1,0 +1,96 @@
+Find the number of students enrolled in each program and their average grade:
+
+SELECT SPrograms.program_name, COUNT(*) AS num_students, AVG(CAST(Results.grade AS DECIMAL)) AS avg_grade
+FROM SPrograms
+JOIN SCourses ON SPrograms.scourse_code = SCourses.scourse_code
+JOIN Results ON SPrograms.student_id = Results.student_id AND SCourses.scourse_code = Results.scourse_code
+GROUP BY SPrograms.program_name;
+
+Find the number of students who passed and failed each course in a particular semester:
+
+SELECT LCourses.course_name, Results.grade, COUNT(*) AS num_students
+FROM Results
+JOIN LCourses ON Results.scourse_code = LCourses.lcourse_code
+JOIN Semesters ON LCourses.lcourse_code = Semesters.scourse_code
+WHERE Semesters.semester_name = 'Semester_B'
+GROUP BY LCourses.course_name, Results.grade;
+
+Find the name of the student who borrowed the most books from each library:
+
+SELECT Library.library_name, SPersonal_infor.first_name, SPersonal_infor.last_name, COUNT(*) AS num_books_borrowed
+FROM Library_information
+JOIN Library ON Library_information.library_id = Library.library_id
+JOIN Students ON Library_information.student_id = Students.student_id
+JOIN SPersonal_infor ON Students.student_id = SPersonal_infor.student_id
+GROUP BY Library.library_name, SPersonal_infor.first_name, SPersonal_infor.last_name
+HAVING COUNT(*) = (SELECT MAX(num_borrowed) FROM (
+    SELECT Library_information.library_id, Students.student_id, COUNT(*) AS num_borrowed
+    FROM Library_information
+    JOIN Students ON Library_information.student_id = Students.student_id
+    GROUP BY Library_information.library_id, Students.student_id
+) AS borrowed_by_student)
+ORDER BY Library.library_name;
+
+Retrieve the pass rate and fail rate of all results reports submitted by universities in the year 2022:
+
+SELECT results_rep_name, pass_rate, fail_rate
+FROM Final_reports
+INNER JOIN Results_reports ON Final_reports.results_rep_id = Results_reports.results_rep_id
+WHERE EXTRACT(YEAR FROM results_rep_date) = 2022;
+
+Retrieve the total number of students and lecturers in each department of a specific university:
+
+SELECT 
+    Departments.department_name, 
+    COUNT(DISTINCT Students.student_id) AS num_students, 
+    COUNT(DISTINCT Lecturers.lecturer_id) AS num_lecturers
+FROM 
+    Departments
+LEFT JOIN 
+    SPrograms ON Departments.sprogram_id = SPrograms.sprogram_id
+LEFT JOIN 
+    LPrograms ON Departments.lprogram_id = LPrograms.lprogram_id
+LEFT JOIN 
+    SCourses ON SPrograms.scourse_code = SCourses.scourse_code
+LEFT JOIN 
+    LCourses ON LPrograms.lcourse_code = LCourses.lcourse_code
+LEFT JOIN 
+    Results ON SCourses.scourse_code = Results.scourse_code OR LCourses.lcourse_code = Results.scourse_code
+LEFT JOIN 
+    Students ON Results.student_id = Students.student_id
+LEFT JOIN 
+    Lecturers ON Results.lecturer_id = Lecturers.lecturer_id
+WHERE 
+    Students.University_name = 'NUL' AND Lecturers.University_name = 'LAC'
+GROUP BY 
+    Departments.department_name;
+
+
+Retrieve the top 5 courses with the highest average grade among all universities:
+
+SELECT 
+    SCourses.course_name, 
+    AVG(CAST(Results.grade AS FLOAT)) AS average_grade
+FROM 
+    Results
+JOIN 
+    SCourses ON Results.scourse_code = SCourses.scourse_code
+GROUP BY 
+    SCourses.course_name
+ORDER BY 
+    average_grade DESC
+LIMIT 5;
+
+
+Retrieve the budget report names and their corresponding explanations for a specific university:
+
+SELECT 
+    Budgets_reports.budget_rep_name, 
+    Budgets_reports.explanation
+FROM 
+    Final_reports
+JOIN 
+    Budgets_reports ON Final_reports.budget_rep_id = Budgets_reports.budget_rep_id
+WHERE 
+    Final_reports.university_name = 'LP';
+

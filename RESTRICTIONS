@@ -1,0 +1,312 @@
+sudo docker exec -it <container_name> psql -U <username> -d <database_name> -p <port> -h <hostname>. 
+
+Create a role for each university, e.g. "NUL", "CAS", "LIPAM", "LP", "LEC", "IDM", "LAC", "MOET" in the PostgreSQL database:
+CREATE ROLE NUL LOGIN PASSWORD 'citus';
+CREATE ROLE CAS LOGIN PASSWORD 'citus';
+CREATE ROLE LIPAM LOGIN PASSWORD 'citus';
+CREATE ROLE LP LOGIN PASSWORD 'citus';
+CREATE ROLE LEC LOGIN PASSWORD 'citus';
+CREATE ROLE IDM LOGIN PASSWORD 'citus';
+CREATE ROLE LAC LOGIN PASSWORD 'citus';
+CREATE ROLE MOET LOGIN PASSWORD 'citus'SUPERUSER;
+
+Grant each university role permission to create tables, insert, update, and delete data within its own schema:
+GRANT ALL ON SCHEMA citus TO NUL;
+GRANT ALL ON SCHEMA citus TO CAS;
+GRANT ALL ON SCHEMA citus TO LIPAM;
+GRANT ALL ON SCHEMA citus TO LP;
+GRANT ALL ON SCHEMA citus TO LEC;
+GRANT ALL ON SCHEMA citus TO IDM;
+GRANT ALL ON SCHEMA citus TO LAC;
+
+Grant each university role SELECT permission on the "projects" and "fprojects" tables in other universities' schemas:
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA citus TO MOET;
+GRANT SELECT ON ALL TABLES IN SCHEMA citus TO MOET;
+
+Optionally, you can also set up row-level security policies to restrict access to specific rows in the "projects" and "fprojects" tables:
+CREATE POLICY nul_projects_policy ON projects TO nul
+  USING (uni = 'NUL') WITH CHECK (uni = 'NUL');
+CREATE POLICY cas_projects_policy ON projects TO cas
+  USING (uni = 'CAS') WITH CHECK (uni = 'CAS');
+CREATE POLICY lipam_projects_policy ON projects TO lipam
+  USING (uni = 'LIPAM') WITH CHECK (uni = 'LIPAM');
+-- repeat for other universities and for the fprojects table
+
+To partition tables to all nodes in a Citus cluster:
+select * from create_distributed_table('University', 'university_name');
+select * from create_distributed_table('Students', 'university_name',colocate_with =>'University');
+select * from create_distributed_table('Lecturers', 'lecturer_id');
+select * from create_distributed_table('SPersonal_infor', 'spersonal_info_id');
+select * from create_distributed_table('LPersonal_infor', 'lpersonal_info_id');
+select * from create_distributed_table('SAcademic_records', 'sacademic_id');
+select * from create_distributed_table('LAcademic_records', 'lacademic_id');
+select * from create_distributed_table('Faculties', 'faculty_id');
+select * from create_distributed_table('Departments', 'department_id');
+select * from create_distributed_table('SPrograms', 'sprogram_id');
+select * from create_distributed_table('LPrograms', 'lprogram_id');
+select * from create_distributed_table('SCourses', 'scourse_code');
+select * from create_distributed_table('LCourses', 'lcourse_code');
+select * from create_distributed_table('Results', 'scourse_code');
+select * from create_distributed_table('Semesters', 'semester_id');
+select * from create_distributed_table('Results_reports', 'results_rep_id');
+select * from create_distributed_table('Budgets_reports', 'budget_rep_id');
+select * from create_distributed_table('Facilities_reports', 'facilities_rep_id');
+select * from create_distributed_table('Final_reports', 'report_id');
+select * from create_distributed_table('MOET', 'minister_name');
+
+
+SELECT * FROM citus_get_active_worker_nodes();
+
+HERE IS WHAT I WANT, IF THE UNIVERSITY NAME IS "NUL", STORE THAT INFORMATION TO THE WORK-NODE NAMED "NUL", 
+IF THE UNIVERSITY NAME IS "LAC", STORE THAT INFORMATION TO THE WORK-NODE NAMED "LAC", etc
+
+To enable the pg_shard extension, you can connect to the coordinator node of your Citus cluster and run the following command:
+CREATE EXTENSION pg_shard;
+
+This query tells Citus to map the university_name values "NUL", "LAC", "LP", "LEC", and "CAS" 
+to the worker nodes "NUL", "LAC", "LP", "LEC", and "CAS", respectively. 
+Now, when you insert data into the Students table with a specific university_name value, 
+Citus will automatically route the data to the appropriate worker node based on the mapping you defined.
+
+SELECT pg_shard.create_node_shard_map('Students', 'university_name', 
+'{"NUL": "NUL", "LAC": "LAC", "LP": "LP", "LEC": "LEC", "CAS": "CAS"}');
+
+
+sudo docker exec -it project_citus-coordinator_1 psql -U citus -d citus
+
+sudo docker exec -it project_NUL_1 psql -U citus -d citus -p 5432 -h citus-coordinator
+
+node moet-server.js
+
+node idm-server.js
+
+node lec-server.js
+
+node lac-server.js
+
+node lipam-server.js
+
+node lp-server.js
+
+node cas-server.js
+
+node nul-server.js
+
+node server.js
+
+sudo lsof -i :5432
+
+DROP TABLE IF EXISTS FProjects;
+DROP TABLE IF EXISTS Projects;
+DROP TABLE IF EXISTS Funding;
+DROP TABLE IF EXISTS Library_information;
+DROP TABLE IF EXISTS Library;
+DROP TABLE IF EXISTS MOET;
+DROP TABLE IF EXISTS Final_reports;
+DROP TABLE IF EXISTS Facilities_reports;
+DROP TABLE IF EXISTS Budgets_reports;
+DROP TABLE IF EXISTS Results_reports;
+DROP TABLE IF EXISTS Results CASCADE;
+DROP TABLE IF EXISTS Semesters;
+DROP TABLE IF EXISTS SCourses CASCADE;
+DROP TABLE IF EXISTS LPrograms CASCADE;
+DROP TABLE IF EXISTS SPrograms CASCADE;
+DROP TABLE IF EXISTS LCourses CASCADE;
+DROP TABLE IF EXISTS SAcademic_records;
+DROP TABLE IF EXISTS LAcademic_records;
+DROP TABLE IF EXISTS LPersonal_info;
+DROP TABLE IF EXISTS SPersonal_info;
+DROP TABLE IF EXISTS Lecturers CASCADE;
+DROP TABLE IF EXISTS Students CASCADE;
+DROP TABLE IF EXISTS Departments CASCADE;
+DROP TABLE IF EXISTS Faculties;
+DROP TABLE IF EXISTS University CASCADE;
+
+
+
+// Get all student courses
+app.get('/scourses', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM scourses';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching student courses' });
+  }
+});
+
+// Get all lecturer courses
+app.get('/lcourses', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM lcourses';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching lecturer courses' });
+  }
+});
+
+// Get all SPrograms
+app.get('/sprograms', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM sprograms';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching SPrograms' });
+  }
+});
+
+// Get all LPrograms
+app.get('/lprograms', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM lprograms';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching LPrograms' });
+  }
+});
+
+// Get all Departments
+app.get('/departments', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM departments';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching Departments' });
+  }
+});
+
+// Get all Faculties
+app.get('/faculties', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM faculties';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching Faculties' });
+  }
+});
+
+// Get all results
+app.get('/results', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM results';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching results' });
+  }
+});
+
+// Get all semesters
+app.get('/semesters', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM semesters';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching semesters' });
+  }
+});
+
+
+// Delete method for scourses table
+app.delete('/scourses/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM scourses WHERE scourses_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'Student courses data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting student courses data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting student courses data' });
+  }
+});
+
+// Delete method for lcourses table
+app.delete('/lcourses/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM lcourses WHERE lcourses_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'Lecturer courses data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting lecturer courses data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting lecturer courses data' });
+  }
+});
+
+// Delete method for sprograms table
+app.delete('/sprograms/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM sprograms WHERE sprograms_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'SProgram data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting SProgram data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting SProgram data' });
+  }
+});
+
+// Delete method for lprograms table
+app.delete('/lprograms/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM lprograms WHERE lprograms_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'LProgram data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting LProgram data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting LProgram data' });
+  }
+});
+
+// Delete method for departments table
+app.delete('/departments/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM departments WHERE department_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'Department data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting Department data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting Department data' });
+  }
+});
+
+// Delete data from the 'results' table
+app.delete('/results/:id', async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const query = 'DELETE FROM results WHERE result_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'Data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting data' });
+  }
+});
+
+// Delete data from the 'semesters' table
+app.delete('/semesters/:id', async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const query = 'DELETE FROM semesters WHERE semester_id = $1';
+    await pool.query(query, [id]);
+    res.json({ message: 'Data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting data:', error);
+    res.status(500).json({ error: 'An error occurred while deleting data' });
+  }
+});

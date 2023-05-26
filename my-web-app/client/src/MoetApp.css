@@ -1,0 +1,21 @@
+/* MoetApp.css */
+
+.MoetApp {
+  text-align: center;
+}
+
+.MoetApp-logo {
+  animation: App-logo-spin infinite 10s linear;
+  height: 80px;
+}
+
+.MoetApp-header {
+  background-color: #251b15;
+  height: 44430px;
+  padding: 10px;
+  color: #00d13f;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+

@@ -1,0 +1,157 @@
+version: '3'
+
+services:
+  NUL:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: NUL
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./NUL:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  CAS:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: CAS
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./CAS:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  LIPAM:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: LIPAM
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./LIPAM:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  LP:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: LP
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./LP:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  LEC:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: LEC
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./LEC:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  IDM:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: IDM
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./IDM:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  LAC:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: LAC
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./LAC:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  MOET:
+    image: citusdata/citus:10.0
+    environment:
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+      CITUS_WORKER_NAME: MOET
+      CITUS_MASTER_HOST: citus-coordinator
+    depends_on:
+      - citus-coordinator
+    volumes:
+      - ./MOET:/var/lib/postgresql/pgdata
+    restart: always
+    networks:
+      - citus
+
+  citus-coordinator:
+    image: citusdata/citus:10.0
+    environment:
+      CITUS_NODES: NUL,CAS,LIPAM,LP,LEC,IDM,LAC,MOET
+      POSTGRES_PASSWORD: citus
+      POSTGRES_USER: citus
+      POSTGRES_DB: citus
+      PGDATA: /pgdata
+    volumes:
+      - ./coordinator:/var/lib/postgresql/pgdata
+    restart: always
+    ports:
+      - "5432:5432"
+    networks:
+      - citus
+
+networks:
+  citus:
