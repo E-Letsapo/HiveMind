@@ -1,3 +1,7 @@
+//CODE 100% ORIGINAL BY HIVEMIND GROUP
+//FOR FURTHER COMMUNICATION OR IF HAVING QUESTIONS REGARDING THE FUNCTIONS,
+//PLEASE CONTACT +26650709108 OR EMAIL US AT edwardletsapo@gmail.com
+
 //APP.JS CODE
 
 import React, { Component } from 'react';
@@ -75,7 +79,7 @@ class App extends Component {
             this.setState({ redirectToApp: 'LIPAM' });
             break;
           case 'LP':
-            this.setState({ redirectToApp: 'LP' });
+            this.setState({ redirectToApp: ' LP' });
             break;
           case 'LEC':
             this.setState({ redirectToApp: 'LEC' });

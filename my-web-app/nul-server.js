@@ -1,8 +1,13 @@
+//CODE 100% ORIGINAL BY HIVEMIND GROUP
+//FOR FURTHER COMMUNICATION OR IF HAVING QUESTIONS REGARDING THE FUNCTIONS,
+//PLEASE CONTACT +26650709108 OR EMAIL US AT edwardletsapo@gmail.com
+
 //nul-server.js
 const express = require('express');
-const http = require('http');
 const { Pool } = require('pg');
 const cors = require('cors');
+const { query } = require('pg');
+const { validationResult } = require('express-validator');
 
 const app = express();
 const port = 3002;
@@ -19,7 +24,6 @@ const pool = new Pool({
 // Enable CORS for requests from localhost:3000 to localhost:3009
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://localhost:5432'
 ];
 
 app.use(cors({
@@ -33,9 +37,6 @@ app.get('/', (req, res) => {
   res.status(200).send('NUL DBMs hello!!');
 });
 
-// Additional routes and functionality specific to the "NUL" worker node can be added here
-
-// Route handler for "/tables"
 // Get all tables
 app.get('/tables', async (req, res) => {
   try {
@@ -64,27 +65,65 @@ app.get('/:table', async (req, res) => {
   }
 });
 
-// Get data for a specific id on specific table
-app.get('/:table/:id', async (req, res) => {
-  const { table } = req.params;
+// Update data for a specific table by ID
+app.put('/:table/:id', [
+  // Add input validation rules using express-validator or Joi
+], async (req, res) => {
+  const { table, id } = req.params;
+  const data = req.body;
 
   try {
-    const query = `SELECT * FROM ${table}`;
-    const result = await pool.query(query);
-    const data = result.rows;
-    res.json(data);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const fields = Object.keys(data);
+    const values = Object.values(data);
+
+    // Check if the update ID exists in the selected table
+    const selectQuery = `SELECT ${table}_id FROM ${table} WHERE ${table}_id = $1`;
+    const selectParams = [id];
+    const selectResult = await pool.query(selectQuery, selectParams);
+
+    if (selectResult.rowCount === 0) {
+      return res.status(404).json({ error: 'No matching records found' });
+    }
+
+    // Update the main table
+    const updateParams = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+    const query = `UPDATE ${table} SET ${updateParams} WHERE ${table}_id = $1`;
+    const queryParams = [id, ...values];
+    console.log('Query:', query);
+    console.log('Query Params:', queryParams);
+
+    await pool.query(query, queryParams);
+
+    // Search and update referenced tables
+   
+    for (const referencingTable of referencingTables) {
+      const updateReferencingTableQuery = `
+        UPDATE ${referencingTable}
+        SET ${referencingColumns.map(column => `${column} = $1`).join(', ')}
+        WHERE ${table}_id = $2
+      `;
+      const updateReferencingTableParams = [id, ...values];
+      await pool.query(updateReferencingTableQuery, updateReferencingTableParams);
+    }
+
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    console.error('Error fetching table data:', error);
-    res.status(500).json({ error: 'An error occurred while fetching table data' });
+    console.error('Error updating table data:', error);
+    res.status(500).json({ error: 'An error occurred while updating table data' });
   }
 });
 
 // Search for a specific ID in the database
-app.get('/search/:table/:id', async (req, res) => {
-  const { table, id } = req.params;
+app.get('/:table/:id', async (req, res) => {
+  const { table, id } = req.params; // Extract the 'table' and 'id' parameters from the route URL
 
   try {
-    const query = `SELECT * FROM ${table} WHERE ${table}_id = $1`;
+    const query = `SELECT * FROM ${table} WHERE ${table}::text ILIKE '%' || $1 || '%'`;
     const result = await pool.query(query, [id]);
     const data = result.rows;
     res.json(data);
@@ -94,43 +133,57 @@ app.get('/search/:table/:id', async (req, res) => {
   }
 });
 
-// Delete data for a specific table and ID
+// Delete data for a specific table by ID
+// Delete data for a specific table or all tables by ID
 app.delete('/:table/:id', async (req, res) => {
   const { table, id } = req.params;
-  const { cascade } = req.query;
 
   try {
-    let columnName;
-    if (table == 'lecturers')
-    {
-      columnName = 'lecturer_id';
+    // Delete the record from the selected table
+    const deleteQuery = `DELETE FROM ${table} WHERE ${table}_id = $1`;
+    const deleteParams = [id];
+    await pool.query(deleteQuery, deleteParams);
+
+    // Delete the record from all referencing tables
+    const referencingTablesQuery = `SELECT table_name, column_name
+      FROM information_schema.key_column_usage
+      WHERE referenced_table_name = $1`;
+
+    const referencingTablesParams = [table];
+    const referencingTablesResult = await pool.query(referencingTablesQuery, referencingTablesParams);
+    const referencingTables = referencingTablesResult.rows;
+
+    for (const referencingTable of referencingTables) {
+      const { table_name, column_name } = referencingTable;
+      const deleteReferencingTableQuery = `DELETE FROM ${table_name} WHERE ${column_name} = $1`;
+      const deleteReferencingTableParams = [id];
+      await pool.query(deleteReferencingTableQuery, deleteReferencingTableParams);
     }
-    const query = `DELETE FROM ${table} WHERE ${columnName} = $1`;
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
+
+    res.json({ success: true, message: 'Data deleted successfully' });
   } catch (error) {
     console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
+    res.status(500).json({ success: false, error: 'An error occurred while deleting data' });
   }
 });
 
-// Get all students
-app.get('/students', async (req, res) => {
+// Get all student
+app.get('/student', async (req, res) => {
   try {
-    const query = 'SELECT * FROM students';
+    const query = 'SELECT * FROM student';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching students' });
+    res.status(500).json({ error: 'An error occurred while fetching student' });
   }
 });
 
-//insert on students table
-app.post('/students', async (req, res) => {
-  const { student_id, university_name, arrival_year, completion_year, year_of_study } = req.body;
+//insert on student table
+app.post('/student', async (req, res) => {
+  const { student_id, university_id, arrival_year, completion_year, year_of_study } = req.body;
 
   try {
-    await pool.query('INSERT INTO Students (student_id, university_name, arrival_year, completion_year, year_of_study) VALUES ($1, $2, $3, $4, $5)', [student_id, university_name, arrival_year, completion_year, year_of_study]);
+    await pool.query('INSERT INTO student (student_id, university_id, arrival_year, completion_year, year_of_study) VALUES ($1, $2, $3, $4, $5)', [student_id, university_id, arrival_year, completion_year, year_of_study]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -139,37 +192,39 @@ app.post('/students', async (req, res) => {
   }
 });
 
-// Delete method for students table
-app.delete('/students/:student_id', async (req, res) => {
+// Update student by ID
+app.put('/student/:id', async (req, res) => {
   const { id } = req.params;
+  const { student_id, university_id, arrival_year, completion_year, year_of_study } = req.body;
 
   try {
-    const query = 'DELETE FROM students WHERE student_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Student data deleted successfully' });
+    await pool.query('UPDATE student SET student_id = $1, university_id = $2, arrival_year = $3, completion_year = $4, year_of_study = $5 WHERE id = $6',
+      [student_id, university_id, arrival_year, completion_year, year_of_study, id]);
+
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    console.error('Error deleting student data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting student data' });
+    console.error('Error updating data:', error);
+    res.status(500).json({ error: 'An error occurred while updating data' });
   }
 });
 
-// Get all lecturers
-app.get('/lecturers', async (req, res) => {
+// Get all lecturer
+app.get('/lecturer', async (req, res) => {
   try {
-    const query = 'SELECT * FROM lecturers';
+    const query = 'SELECT * FROM lecturer';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching lecturers' });
+    res.status(500).json({ error: 'An error occurred while fetching lecturer' });
   }
 });
 
-//insert into lecturers table
-app.post('/lecturers', async (req, res) => {
-  const { lecturer_id, university_name, arrival_year } = req.body;
+//insert into lecturer table
+app.post('/lecturer', async (req, res) => {
+  const { lecturer_id, university_id, arrival_year } = req.body;
 
   try {
-    await pool.query('INSERT INTO Lecturers (lecturer_id, university_name, arrival_year) VALUES ($1, $2, $3)', [lecturer_id, university_name, arrival_year]);
+    await pool.query('INSERT INTO lecturer (lecturer_id, university_id, arrival_year) VALUES ($1, $2, $3)', [lecturer_id, university_id, arrival_year]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -178,38 +233,39 @@ app.post('/lecturers', async (req, res) => {
   }
 });
 
-// Delete method for lecturers table
-app.delete('/lecturers/:lecturer_id', async (req, res) => {
-  const { lecturer_id } = req.params;
+// Update lecturer by ID
+app.put('/lecturer/:id', async (req, res) => {
+  const { id } = req.params;
+  const { lecturer_id, university_id, arrival_year } = req.body;
 
   try {
-    const query = 'DELETE FROM lecturers WHERE lecturer_id = $1';
-    await pool.query(query, [lecturer_id]);
-    res.json({ message: 'Lecturer data deleted successfully' });
+    await pool.query('UPDATE lecturer SET lecturer_id = $1, university_id = $2, arrival_year = $3 WHERE id = $4',
+      [lecturer_id, university_id, arrival_year, id]);
 
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    console.error('Error deleting lecturer data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting lecturer data' });
+    console.error('Error updating data:', error);
+    res.status(500).json({ error: 'An error occurred while updating data' });
   }
 });
 
-// Get all students' personal info
-app.get('/students/personal-info', async (req, res) => {
+// Get all student' personal info
+app.get('/spersonal_info', async (req, res) => {
   try {
     const query = 'SELECT * FROM spersonal_info';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching students\'personal info' });
+    res.status(500).json({ error: 'An error occurred while fetching student\'personal info' });
   }
 });
 
 //insert into student personal info
-app.post('/spersonalinfo', async (req, res) => {
-  const { spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_name } = req.body;
+app.post('/spersonal_info', async (req, res) => {
+  const { spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_id } = req.body;
 
   try {
-    await pool.query('INSERT INTO SPersonal_info (spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_name]);
+    await pool.query('INSERT INTO SPersonal_info (spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_id]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -218,23 +274,39 @@ app.post('/spersonalinfo', async (req, res) => {
   }
 });
 
-// Get all lecturers' personal info
-app.get('/lecturers/personal-info', async (req, res) => {
+// Update student personal info by ID
+app.put('/spersonal_info/:id', async (req, res) => {
+  const { id } = req.params;
+  const { spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE spersonal_info SET spersonal_info_id = $1, student_id = $2, first_name = $3, middle_name = $4, last_name = $5, id_number = $6, district = $7, contact = $8, university_id = $9 WHERE id = $10',
+      [spersonal_info_id, student_id, first_name, middle_name, last_name, id_number, district, contact, university_id, id]);
+
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating data:', error);
+    res.status(500).json({ error: 'An error occurred while updating data' });
+  }
+});
+
+// Get all lecturer' personal info
+app.get('/lpersonal_info', async (req, res) => {
   try {
     const query = 'SELECT * FROM lpersonal_info';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching lecturers\' personal info' });
+    res.status(500).json({ error: 'An error occurred while fetching lecturer\' personal info' });
   }
 });
 
-//insert into lecturers personal info
-app.post('/lpersonalinfo', async (req, res) => {
-  const { lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_name } = req.body;
+//insert into lecturer personal info
+app.post('/lpersonal_info', async (req, res) => {
+  const { lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_id } = req.body;
 
   try {
-    await pool.query('INSERT INTO LPersonal_info (lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_name]);
+    await pool.query('INSERT INTO LPersonal_info (lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_id]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -243,23 +315,39 @@ app.post('/lpersonalinfo', async (req, res) => {
   }
 });
 
-// Get all academic records for students
-app.get('/sacademic_records', async (req, res) => {
+// Update lecturer' personal info by ID
+app.put('/lpersonal_info/:id', async (req, res) => {
+  const { id } = req.params;
+  const { lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM sacademic_records';
-    const result = await pool.query(query);
-    res.json(result.rows);
+    const query = 'UPDATE lpersonal_info SET lpersonal_info_id = $1, lecturer_id = $2, first_name = $3, middle_name = $4, last_name = $5, id_number = $6, district = $7, contact = $8, university_id = $9 WHERE id = $10';
+    const values = [lpersonal_info_id, lecturer_id, first_name, middle_name, last_name, id_number, district, contact, university_id, id];
+    await pool.query(query, values);
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching student academic records' });
+    console.error('Error updating lecturer\' personal info:', error);
+    res.status(500).json({ error: 'An error occurred while updating lecturer\' personal info' });
   }
 });
 
-//insert into students academic records
-app.post('/sacademicrecords', async (req, res) => {
-  const { sacademic_id, academic_year, student_id, university_name } = req.body;
+// Get all semester
+app.get('/semester', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM semester';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching semester' });
+  }
+});
+
+// Insert into semester table
+app.post('/semester', async (req, res) => {
+  const { semester_id, university_id } = req.body;
 
   try {
-    await pool.query('INSERT INTO SAcademic_records (sacademic_id, academic_year, student_id, university_name) VALUES ($1, $2, $3, $4)', [sacademic_id, academic_year, student_id, university_name]);
+    await pool.query('INSERT INTO semester (semester_id, university_id) VALUES ($1, $2)', [semester_id, university_id]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -268,23 +356,39 @@ app.post('/sacademicrecords', async (req, res) => {
   }
 });
 
-// Get all academic records for lecturers
-app.get('/lacademic_records', async (req, res) => {
+// Update semester by ID
+app.put('/semester/:id', async (req, res) => {
+  const { id } = req.params;
+  const { semester_id, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM lacademic_records';
-    const result = await pool.query(query);
-    res.json(result.rows);
+    const query = 'UPDATE semester SET semester_id = $1, university_id = $2 WHERE id = $3';
+    const values = [semester_id, university_id, id];
+    await pool.query(query, values);
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching lecturer academic records' });
+    console.error('Error updating semester:', error);
+    res.status(500).json({ error: 'An error occurred while updating semester' });
   }
 });
 
-//insert into lecturers academic records
-app.post('/lacademicrecords', async (req, res) => {
-  const { lacademic_id, academic_year, lecturer_id, title, university_name } = req.body;
+// Get all course
+app.get('/course', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM course';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching course' });
+  }
+});
+
+// Insert into course table
+app.post('/course', async (req, res) => {
+  const { course_id, course_name, credit_hours, semester_id, university_id } = req.body;
 
   try {
-    await pool.query('INSERT INTO LAcademic_records (lacademic_id, academic_year, lecturer_id, title, university_name) VALUES ($1, $2, $3, $4, $5)', [lacademic_id, academic_year, lecturer_id, title, university_name]);
+    await pool.query('INSERT INTO course (course_id, course_name, credit_hours, semester_id, university_id) VALUES ($1, $2, $3, $4, $5)', [course_id, course_name, credit_hours, semester_id, university_id]);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (error) {
@@ -293,43 +397,377 @@ app.post('/lacademicrecords', async (req, res) => {
   }
 });
 
-// Get all results reports
-app.get('/results_reports', async (req, res) => {
+// Update course by ID
+app.put('/course/:id', async (req, res) => {
+  const { id } = req.params;
+  const { course_id, course_name, credit_hours, semester_id, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM results_reports';
-    const result = await pool.query(query);
-    res.json(result.rows);
+    const query = 'UPDATE course SET course_id = $1, course_name = $2, credit_hours = $3, semester_id = $4, university_id = $5 WHERE id = $6';
+    const values = [course_id, course_name, credit_hours, semester_id, university_id, id];
+    await pool.query(query, values);
+    res.json({ message: 'Data updated successfully'});
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching results reports' });
+    console.error('Error updating course:', error);
+    res.status(500).json({ error: 'An error occurred while updating course' });
   }
 });
 
-// Get all budgets reports
-app.get('/budgets_reports', async (req, res) => {
+// Get all program
+app.get('/program', async (req, res) => {
   try {
-    const query = 'SELECT * FROM budgets_reports';
+    const query = 'SELECT * FROM program';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching budgets reports' });
+    res.status(500).json({ error: 'An error occurred while fetching program' });
   }
 });
 
-// Get all facilities reports
-app.get('/facilities_reports', async (req, res) => {
+// Insert into program table
+app.post('/program', async (req, res) => {
+  const { program_id, course_id, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM facilities_reports';
+    await pool.query('INSERT INTO program (program_id, course_id, university_id) VALUES ($1, $2, $3)', [program_id, course_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific program by ID
+app.put('/program/:id', async (req, res) => {
+  const { id } = req.params;
+  const { program_id, course_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE program SET program_id = $1, course_id = $2, university_id = $3 WHERE id = $4', [program_id, course_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating program:', error);
+    res.status(500).json({ error: 'An error occurred while updating program' });
+  }
+});
+
+// Get all department
+app.get('/department', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM department';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching facilities reports' });
+    res.status(500).json({ error: 'An error occurred while fetching department' });
   }
 });
 
-// Final_reports table endpoint
-app.get('/final_reports', async (req, res) => {
+// Insert into department table
+app.post('/department', async (req, res) => {
+  const { department_id, program_id, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM final_reports';
+    await pool.query('INSERT INTO department (department_id, program_id, university_id) VALUES ($1, $2, $3)', [department_id, program_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific department by ID
+app.put('/department/:id', async (req, res) => {
+  const { id } = req.params;
+  const { department_id, program_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE department SET department_id = $1, program_id = $2, university_id = $3 WHERE id = $4', [department_id, program_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating department:', error);
+    res.status(500).json({ error: 'An error occurred while updating department' });
+  }
+});
+
+// Get all faculty
+app.get('/faculty', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM faculty';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching faculty' });
+  }
+});
+
+// Insert into faculty table
+app.post('/faculty', async (req, res) => {
+  const { faculty_id, department_id, university_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO faculty (faculty_id, department_id, university_id) VALUES ($1, $2, $3)', [faculty_id, department_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific faculty by ID
+app.put('/faculty/:id', async (req, res) => {
+  const { id } = req.params;
+  const { faculty_id, department_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE faculty SET faculty_id = $1, department_id = $2, university_id = $3 WHERE id = $4', [faculty_id, department_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating faculty:', error);
+    res.status(500).json({ error: 'An error occurred while updating faculty' });
+  }
+});
+
+// Get all academic record for student
+app.get('/sacademic_record', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM sacademic_record';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching student academic record' });
+  }
+});
+
+// Insert into student academic record table
+app.post('/sacademic_record', async (req, res) => {
+  const { sacademic_id, student_id, faculty_id, department_id, program_id, course_id, university_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO sacademic_record (sacademic_id, student_id, faculty_id, department_id, program_id, course_id, university_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [sacademic_id, student_id, faculty_id, department_id, program_id, course_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific student academic record by ID
+app.put('/sacademic_record/:id', async (req, res) => {
+  const { id } = req.params;
+  const { sacademic_id, student_id, faculty_id, department_id, program_id, course_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE sacademic_record SET sacademic_id = $1, student_id = $2, faculty_id = $3, department_id = $4, program_id = $5, course_id = $6, university_id = $7 WHERE id = $8', [sacademic_id, student_id, faculty_id, department_id, program_id, course_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating student academic record:', error);
+    res.status(500).json({ error: 'An error occurred while updating student academic record' });
+  }
+});
+
+// Get all academic record for lecturer
+app.get('/lacademic_record', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM lacademic_record';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching lecturer academic record' });
+  }
+});
+
+// Insert into lecturer academic record table
+app.post('/lacademic_record', async (req, res) => {
+  const { lacademic_id, lecturer_id, faculty_id, department_id, course_id, university_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO lacademic_record (lacademic_id, lecturer_id, faculty_id, department_id, course_id, university_id) VALUES ($1, $2, $3, $4, $5, $6)', [lacademic_id, lecturer_id, faculty_id, department_id, course_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific lecturer academic record by ID
+app.put('/lacademic_record/:id', async (req, res) => {
+  const { id } = req.params;
+  const { lacademic_id, lecturer_id, faculty_id, department_id, course_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE lacademic_record SET lacademic_id = $1, lecturer_id = $2, faculty_id = $3, department_id = $4, course_id = $5, university_id = $6 WHERE id = $7', [lacademic_id, lecturer_id, faculty_id, department_id, course_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating lecturer academic record:', error);
+    res.status(500).json({ error: 'An error occurred while updating lecturer academic record' });
+  }
+});
+
+// Get all result
+app.get('/result', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM result');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error retrieving result:', error);
+    res.status(500).json({ error: 'An error occurred while retrieving result' });
+  }
+});
+
+// Insert into result table
+app.post('/result', async (req, res) => {
+  const { result_id, academic_id, student_id, university_id, course_id, grade, lecture_comment, lecturer_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO result (result_id, academic_id, student_id, university_id, course_id, grade, lecture_comment, lecturer_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [result_id, academic_id, student_id, university_id, course_id, grade, lecture_comment, lecturer_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific result by ID
+app.put('/result/:id', async (req, res) => {
+  const { id } = req.params;
+  const {result_id, academic_id, student_id, university_id, course_id, grade, lecture_comment, lecturer_id } = req.body;
+
+  try {
+    await pool.query('UPDATE result SET result_id = $1, academic_id = $2, student_id = $3, university_id = $4, course_id = $5, grade = $6, lecture_comment = $7, lecturer_id = $8 WHERE id = $8', [result_id, academic_id, student_id, university_id, course_id, grade, lecture_comment, lecturer_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating result:', error);
+    res.status(500).json({ error: 'An error occurred while updating result' });
+  }
+});
+
+// Get all result report
+app.get('/result_report', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM result_report';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching result report' });
+  }
+});
+
+// Insert into result_report table
+app.post('/result_report', async (req, res) => {
+  const { result_report_id, result_report_name, result_report_date, pass_rate, fail_rate, explanation, university_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO result_report (result_report_id, result_report_name, result_report_date, pass_rate, fail_rate, explanation, university_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [result_report_id, result_report_name, result_report_date, pass_rate, fail_rate, explanation, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific result report by ID
+app.put('/result_report/:id', async (req, res) => {
+  const { id } = req.params;
+  const { result_report_id, result_report_name, result_report_date, pass_rate, fail_rate, explanation, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE result_report SET result_report_id = $1, result_report_name = $2, result_report_date = $3, pass_rate = $4, fail_rate = $5, explanation = $6, university_id = $7 WHERE id = $8', [result_report_id, result_report_name, result_report_date, pass_rate, fail_rate, explanation, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating result_report:', error);
+    res.status(500).json({ error: 'An error occurred while updating result_report' });
+  }
+});
+
+// Get all budgets report
+app.get('/budgets_report', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM budgets_report';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching budgets report' });
+  }
+});
+
+// Insert into Budgets_report table
+app.post('/budgets_report', async (req, res) => {
+  const { budgets_report_id, budget_report_name, budget_report_date, initial_amount, used_amount, balance, explanation } = req.body;
+
+  try {
+    await pool.query('INSERT INTO Budgets_report (budgets_report_id, budget_report_name, budget_report_date, initial_amount, used_amount, balance, explanation) VALUES ($1, $2, $3, $4, $5, $6, $7)', [budgets_report_id, budget_report_name, budget_report_date, initial_amount, used_amount, balance, explanation]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific budget report by ID
+app.put('/budgets_report/:id', async (req, res) => {
+  const { id } = req.params;
+  const { budgets_report_id, budget_report_name, budget_report_date, initial_amount, used_amount, balance, explanation } = req.body;
+
+  try {
+    await pool.query('UPDATE Budgets_report SET budgets_report_id = $1, budget_report_name = $2, budget_report_date = $3, initial_amount = $4, used_amount = $5, balance = $6, explanation = $7 WHERE id = $8', [budgets_report_id, budget_report_name, budget_report_date, initial_amount, used_amount, balance, explanation, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating budget report:', error);
+    res.status(500).json({ error: 'An error occurred while updating budget report' });
+  }
+});
+
+// Get all facilities report
+app.get('/facilities_report', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM facilities_report';
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'An error occurred while fetching facilities report' });
+  }
+});
+
+// Insert into Facilities_report table
+app.post('/facilities_report', async (req, res) => {
+  const { facilities_report_id, facilities_report_name, facilities_report_date, explanation } = req.body;
+
+  try {
+    await pool.query('INSERT INTO Facilities_report (facilities_report_id, facilities_report_name, facilities_report_date, explanation) VALUES ($1, $2, $3, $4)', [facilities_report_id, facilities_report_name, facilities_report_date, explanation]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific facilities report by ID
+app.put('/facilities_report/:id', async (req, res) => {
+  const { id } = req.params;
+  const { facilities_report_id, facilities_report_name, facilities_report_date, explanation } = req.body;
+
+  try {
+    await pool.query('UPDATE Facilities_report SET facilities_report_id = $1, facilities_report_name = $2, facilities_report_date = $3, explanation = $4 WHERE id = $5', [facilities_report_id, facilities_report_name, facilities_report_date, explanation, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating facilities report:', error);
+    res.status(500).json({ error: 'An error occurred while updating facilities report' });
+  }
+});
+
+// Final_report table endpoint
+app.get('/final_report', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM final_report';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
@@ -337,18 +775,35 @@ app.get('/final_reports', async (req, res) => {
   }
 });
 
-// MOET table endpoint
-app.get('/moet', async (req, res) => {
+// Insert into Final_report table
+app.post('/final_report', async (req, res) => {
+  const { final_report_id, facilities_report_id, budgets_report_id, result_report_id, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM moet';
-    const result = await pool.query(query);
-    res.json(result.rows);
+    await pool.query('INSERT INTO Final_report (final_report_id, facilities_report_id, budgets_report_id, result_report_id, university_id) VALUES ($1, $2, $3, $4, $5)', [final_report_id, facilities_report_id, budgets_report_id, result_report_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching moet information' });
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
   }
 });
 
-// Library table endpoint
+// Update data for a specific final report by ID
+app.put('/final_report/:id', async (req, res) => {
+  const { id } = req.params;
+  const { final_report_id, facilities_report_id, budgets_report_id, result_report_id, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE Final_report SET final_report_id = $1, facilities_report_id = $2, budgets_report_id = $3, result_report_id = $4, university_id = $5 WHERE id = $6', [final_report_id, facilities_report_id, budgets_report_id, result_report_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating final report:', error);
+    res.status(500).json({ error: 'An error occurred while updating final report' });
+  }
+});
+
+// library table endpoint
 app.get('/library',async (req, res) => {
   try {
     const query = 'SELECT * FROM library';
@@ -356,6 +811,34 @@ app.get('/library',async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'An error occurred while fetching library' });
+  }
+});
+
+//insert into library table
+app.post('/library', async (req, res) => {
+  const { library_id, library_name, university_id, catalog, usage_statistics, library_events, library_policies } = req.body;
+
+  try {
+    await pool.query('INSERT INTO library (library_id, library_name, university_id, catalog, usage_statistics, library_events, library_policies) VALUES ($1, $2, $3, $4, $5, $6, $7)', [library_id, library_name, university_id, catalog, usage_statistics, library_events, library_policies]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific library by ID
+app.put('/library/:id', async (req, res) => {
+  const { id } = req.params;
+  const { library_id, library_name, university_id, catalog, usage_statistics, library_events, library_policies } = req.body;
+
+  try {
+    await pool.query('UPDATE library SET library_id = $1, library_name = $2, university_id = $3, catalog = $4, usage_statistics = $5, library_events = $6, library_policies = $7 WHERE id = $8', [library_id, library_name, university_id, catalog, usage_statistics, library_events, library_policies, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating library:', error);
+    res.status(500).json({ error: 'An error occurred while updating library' });
   }
 });
 
@@ -370,233 +853,154 @@ app.get('/library_information', async (req, res) => {
   }
 });
 
-// Get all funding records
+//insert into library_information table
+app.post('/library_information', async (req, res) => {
+  const { library_information_id, student_id, lecturer_id, university_id, books_borrowed, books_returned, dates, library_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO library_information (library_information_id, student_id, lecturer_id, university_id, books_borrowed, books_returned, dates, library_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [library_information_id, student_id, lecturer_id, university_id, books_borrowed, books_returned, dates, library_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific library information by ID
+app.put('/library_information/:id', async (req, res) => {
+  const { id } = req.params;
+  const { library_information_id, student_id, lecturer_id, university_id, books_borrowed, books_returned, dates, library_id } = req.body;
+
+  try {
+    await pool.query('UPDATE library_information SET library_information_id = $1, student_id = $2, lecturer_id = $3, university_id = $4, books_borrowed = $5, books_returned = $6, dates = $7, library_id = $8 WHERE id = $9', [library_information_id, student_id, lecturer_id, university_id, books_borrowed, books_returned, dates, library_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating library information:', error);
+    res.status(500).json({ error: 'An error occurred while updating library information' });
+  }
+});
+
+// Get all funding record
 app.get('/funding', async (req, res) => {
   try {
     const query = 'SELECT * FROM funding';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching funding records' });
+    res.status(500).json({ error: 'An error occurred while fetching funding record' });
   }
 });
 
-// Get all projects
-app.get('/projects', async (req, res) => {
+//insert into funding table
+app.post('/funding', async (req, res) => {
+  const { funding_id, student_id, university_id, funding_name, fund_purpose, funding_duration, funding_status, funding_details } = req.body;
+
   try {
-    const query = 'SELECT * FROM projects';
+    await pool.query('INSERT INTO Funding (funding_id, student_id, university_id, funding_name, fund_purpose, funding_duration, funding_status, funding_details) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [funding_id, student_id, university_id, funding_name, fund_purpose, funding_duration, funding_status, funding_details]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific funding record by ID
+app.put('/funding/:id', async (req, res) => {
+  const { id } = req.params;
+  const { funding_id, student_id, university_id, funding_name, fund_purpose, funding_duration, funding_status, funding_details } = req.body;
+
+  try {
+    await pool.query('UPDATE Funding SET funding_id = $1, student_id = $2, university_id = $3, funding_name = $4, fund_purpose = $5, funding_duration = $6, funding_status = $7, funding_details = $8 WHERE id = $9', [funding_id, student_id, university_id, funding_name, fund_purpose, funding_duration, funding_status, funding_details, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating funding record:', error);
+    res.status(500).json({ error: 'An error occurred while updating funding record' });
+  }
+});
+
+// Get all project
+app.get('/project', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM project';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching projects' });
+    res.status(500).json({ error: 'An error occurred while fetching project' });
   }
 });
 
-// Get all FProjects
-app.get('/fprojects', async (req, res) => {
+//insert into project table
+app.post('/project', async (req, res) => {
+  const { project_id, project_name, project_description, university_id } = req.body;
+
   try {
-    const query = 'SELECT * FROM fprojects';
+    await pool.query('INSERT INTO project (project_id, project_name, project_description, university_id) VALUES ($1, $2, $3, $4)', [project_id, project_name, project_description, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific project by ID
+app.put('/project/:id', async (req, res) => {
+  const { id } = req.params;
+  const { project_id, project_name, project_description, university_id } = req.body;
+
+  try {
+    await pool.query('UPDATE project SET project_id = $1, project_name = $2, project_description = $3, university_id = $4 WHERE id = $5', [project_id, project_name, project_description, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
+  } catch (error) {
+    console.error('Error updating project:', error);
+    res.status(500).json({ error: 'An error occurred while updating project' });
+  }
+});
+
+// Get all fproject
+app.get('/fproject', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM fproject';
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching FProjects' });
+    res.status(500).json({ error: 'An error occurred while fetching fproject' });
   }
 });
 
-// Delete method for spersonal_info table
-app.delete('/spersonal_info/:id', async (req, res) => {
+// Insert into fproject table
+app.post('/fproject', async (req, res) => {
+  const { fproject_id, project_id, student_id, lecturer_id, university_id } = req.body;
+
+  try {
+    await pool.query('INSERT INTO fproject (fproject_id, project_id, student_id, lecturer_id, university_id) VALUES ($1, $2, $3, $4, $5)', [fproject_id, project_id, student_id, lecturer_id, university_id]);
+
+    res.json({ message: 'Data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting data:', error);
+    res.status(500).json({ error: 'An error occurred while inserting data' });
+  }
+});
+
+// Update data for a specific fproject by ID
+app.put('/fproject/:id', async (req, res) => {
   const { id } = req.params;
+  const { fproject_id, project_id, student_id, lecturer_id, university_id } = req.body;
 
   try {
-    const query = 'DELETE FROM spersonal_info WHERE spersonal_info_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Student personal info data deleted successfully' });
+    await pool.query('UPDATE fproject SET fproject_id = $1, project_id = $2, student_id = $3, lecturer_id = $4, university_id = $5 WHERE id = $6', [fproject_id, project_id, student_id, lecturer_id, university_id, id]);
+    res.json({ message: 'Data updated successfully' });
   } catch (error) {
-    console.error('Error deleting student personal info data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting student personal info data' });
+    console.error('Error updating fproject:', error);
+    res.status(500).json({ error: 'An error occurred while updating fproject' });
   }
 });
 
-// Delete method for lpersonal_info table
-app.delete('/lpersonal_info/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const query = 'DELETE FROM lpersonal_info WHERE lpersonal_info_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Lecturer personal info data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting lecturer personal info data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting lecturer personal info data' });
-  }
-});
-
-// Delete method for sacademic_records table
-app.delete('/sacademic_records/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const query = 'DELETE FROM sacademic_records WHERE sacademic_records_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Student academic records data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting student academic records data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting student academic records data' });
-  }
-});
-
-// Delete method for lacademic_records table
-app.delete('/lacademic_records/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const query = 'DELETE FROM lacademic_records WHERE lacademic_records_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Lecturer academic records data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting lecturer academic records data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting lecturer academic records data' });
-  }
-});
-
-// Delete data from the 'results_reports' table
-app.delete('/results_reports/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM results_reports WHERE report_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'budgets_reports' table
-app.delete('/budgets_reports/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM budgets_reports WHERE report_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'facilities_reports' table
-app.delete('/facilities_reports/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM facilities_reports WHERE report_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'final_reports' table
-app.delete('/final_reports/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM final_reports WHERE report_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'faculties' table
-app.delete('/faculties/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM moet WHERE faculty_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'library' table
-app.delete('/library/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM library WHERE library_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'library_information' table
-app.delete('/library_information/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM library_information WHERE info_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'funding' table
-app.delete('/funding/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM funding WHERE funding_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'projects' table
-app.delete('/projects/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM projects WHERE project_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
-});
-
-// Delete data from the 'fprojects' table
-app.delete('/fprojects/:id', async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    const query = 'DELETE FROM fprojects WHERE fproject_id = $1';
-    await pool.query(query, [id]);
-    res.json({ message: 'Data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting data:', error);
-    res.status(500).json({ error: 'An error occurred while deleting data' });
-  }
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start the server

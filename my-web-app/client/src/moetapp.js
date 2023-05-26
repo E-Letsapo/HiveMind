@@ -1,3 +1,8 @@
+//CODE 100% ORIGINAL BY HIVEMIND GROUP
+//FOR FURTHER COMMUNICATION OR IF HAVING QUESTIONS REGARDING THE FUNCTIONS,
+//PLEASE CONTACT +26650709108 OR EMAIL US AT edwardletsapo@gmail.com
+
+//MOETAPP.JS CODE
 import React, { Component } from 'react';
 import logo from './logo.svg';
 import './MoetApp.css';
@@ -8,10 +13,8 @@ class MoetApp extends Component {
     data: [],
     selectedTable: null,
     loading: false,
-    searchResults: [],
-    searchId: '',
-    showResults: false,
     filter: '',
+    showTables: false,
   };
 
   componentDidMount() {
@@ -19,12 +22,19 @@ class MoetApp extends Component {
   }
 
   fetchTables = () => {
-    fetch('http://localhost:3009/tables')
+    const { filter } = this.state;
+    let url = 'http://localhost:3009/tables';
+  
+    if (filter) {
+      url += `?filter=${filter}`;
+    }
+  
+    fetch(url)
       .then((response) => response.json())
       .then((data) => {
         if (Array.isArray(data)) {
           this.setState({ tables: data });
-
+  
           const { selectedTable } = this.state;
           if (selectedTable) {
             this.fetchTableData(selectedTable);
@@ -39,50 +49,51 @@ class MoetApp extends Component {
   };
 
   fetchTableData = (table) => {
+    const { filter } = this.state;
+    let url = `http://localhost:3009/${table}`;
+  
+    if (filter) {
+      url += `?filter=${filter}`;
+    }
+  
     this.setState({ loading: true });
-    fetch(`http://localhost:3009/${table}`)
+    fetch(url)
       .then((response) => response.json())
       .then((data) => {
-        this.setState({ data, loading: false });
+        if (Array.isArray(data)) {
+          this.setState({ data, loading: false });
+        } else if (data.results && Array.isArray(data.results)) {
+          this.setState({ data: data.results, loading: false });
+        } else {
+          window.alert('Invalid response data:', data);
+          this.setState({ data: [], loading: false });
+        }
       })
       .catch((error) => {
         window.alert('Error fetching table data:', error);
         this.setState({ data: [], loading: false });
       });
   };
+  
 
   selectTable = (table) => {
     this.setState({ selectedTable: table });
     this.fetchTableData(table);
   };
 
-  handleSearchChange = (event) => {
-    this.setState({ searchId: event.target.value });
+  handleShowTables = () => {
+    this.setState({ showTables: true });
   };
 
-  handleSearchSubmit = () => {
-    const { data, searchId, filter } = this.state;
-
-    if (data) {
-      const filteredData = data.filter(
-        (row) =>
-          row.id === searchId && (filter === '' || row.universityName === filter)
-      );
-      this.setState({ searchResults: filteredData, showResults: true });
-    }
-  };
-
-  handleHideResults = () => {
-    this.setState({ showResults: false });
-  };
-
-  handleShowResults = () => {
-    this.setState({ showResults: true });
+  handleHideTables = () => {
+    this.setState({ showTables: false });
   };
 
   handleFilterChange = (event) => {
-    this.setState({ filter: event.target.value });
+    const filter = event.target.value;
+    this.setState({ filter });
   };
+  
 
   render() {
     const {
@@ -90,10 +101,8 @@ class MoetApp extends Component {
       tables,
       data,
       loading,
-      searchResults,
-      searchId,
-      showResults,
       filter,
+      showTables,
     } = this.state;
 
     const handleLogout = () => {
@@ -108,11 +117,11 @@ class MoetApp extends Component {
       <div className="App">
         <div className="MoetApp-header">
           <img src={logo} className="App-logo" alt="logo" />
-          <h1>ALL HLIs Database Management System</h1>
-          <div className="search-container">
+          <h1>Welcome Minister. Below is Lesotho's HLIs' Data...</h1>
+          <div className="more-actions">
             {/* Filter dropdown */}
-            <select value={filter} onChange={this.handleFilterChange}>
-              <option value="">All</option> {/* Show all results */}
+            <select value={filter} onChange={this.handleFilterChange} style={{ fontSize: '13px', padding: '7px 7px', marginRight: '207px' }}>
+              <option value="">Filter Tables By:</option> {/* Show all results */}
               <option value="NUL">NUL</option>
               <option value="LP">LP</option>
               <option value="LIPAM">LIPAM</option>
@@ -121,95 +130,63 @@ class MoetApp extends Component {
               <option value="LEC">LEC</option>
               <option value="LAC">LAC</option>
             </select>
-            <input
-              type="text"
-              value={searchId}
-              onChange={this.handleSearchChange}
-              placeholder="Search by ID"
-            />
-            <button onClick={this.handleSearchSubmit}>Search</button>
-          </div>
-          {searchResults.length > 0 && (
-            <div className="search-results">
-              <h2>Search Results</h2>
-              <table>
-                <thead>
-                  <tr>
-                    {Object.keys(searchResults[0]).map((key) => (
-                      <th key={key}>{key}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {searchResults.map((row, index) => (
-                    <tr key={index}>
-                      {Object.values(row).map((value, index) => (
-                        <td key={index}>{value}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {showResults && searchResults.length === 0 && (
-            <div className="search-results">
-              <p>No matching data found.</p>
-            </div>
-          )}
-          {!showResults && (
-            <div className="show-results-button">
-              <button onClick={this.handleShowResults}>Show Results</button>
-            </div>
-          )}
-          {showResults && (
-            <div className="hide-results-button">
-              <button onClick={this.handleHideResults}>Hide Results</button>
-            </div>
-          )}
-          <div className="more-actions">
-            <button onClick={this.fetchTables}>Refresh Tables</button>
-            <button onClick={handleLogout}>Logout</button>
-          </div>
+            <button
+              onClick={this.fetchTables}
+              style={{ fontSize: '13px', padding: '7px 7px', marginRight: '94px' }}
+            >
+              Refresh Tables
+            </button>
+            <button onClick={handleLogout} style={{fontSize: '13px',padding: '7px 7px', marginRight: '140px'}}>Logout</button>
           <div className="table-list">
-            <ul>
-              {tables.map((table) => (
-                <li key={table} onClick={() => this.selectTable(table)}>
-                  {table}
-                  {selectedTable === table && (
-                    <div className="selected-table">
-                      <h2>{selectedTable}</h2>
-                      {loading ? (
-                        <div className="loading">Loading...</div>
-                      ) : data.length > 0 ? (
-                        <table>
-                          <thead>
-                            <tr>
-                              {Object.keys(data[0]).map((key) => (
-                                <th key={key}>{key}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.map((row, index) => (
-                              <tr key={index}>
-                                {Object.values(row).map((value, index) => (
-                                  <td key={index}>{value}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="no-data">
-                          No data available in this table
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="toggle-tables" style={{ marginTop: '20px' }}>
+              {!showTables ? (
+                <button onClick={this.handleShowTables} style={{fontSize: '13px',padding: '7px 7px'}}>Show Tables</button>
+              ) : (
+                <button onClick={this.handleHideTables} style={{fontSize: '13px',padding: '7px 7px'}}>Hide Tables</button>
+              )}
+            </div>
+            </div>
+            {showTables && (
+                <ul>
+                  {tables
+                    .filter((table) => table !== "pg_dist_object") 
+                    .map((table) => (
+                      <li key={table} onClick={() => this.selectTable(table)}>
+                        {table}
+                        {selectedTable === table && (
+                          <div className="selected-table">
+                            {loading ? (
+                              <div className="loading">Loading...</div>
+                            ) : data.length > 0 ? (
+                              <table>
+                                <thead>
+                                  <tr>
+                                    {Object.keys(data[0]).map((key) => (
+                                      <th key={key}>{key}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {data.map((row, index) => (
+                                    <tr key={index}>
+                                      {Object.values(row).map((value, index) => (
+                                        <td key={index}>{value}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <div className="no-data">
+                                No data available in this table
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              )}
           </div>
         </div>
       </div>

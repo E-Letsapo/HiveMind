@@ -1,388 +1,498 @@
-//nulapp.js
+//CODE 100% ORIGINAL BY HIVEMIND GROUP
+//FOR FURTHER COMMUNICATION OR IF HAVING QUESTIONS REGARDING THE FUNCTIONS,
+//PLEASE CONTACT +26650709108 OR EMAIL US AT edwardletsapo@gmail.com
+
+//NULAPP.JS CODE
 import React, { Component } from 'react';
 import logo from './logo.svg';
 import './NulApp.css';
 
+//APP COMPONENT
 class NulApp extends Component {
-  state = {
-    tables: [],
-    data: null,
-    selectedTable: null,
-    loading: false,
-    searchId: '', // New state for search ID
-    searchResults: [], // New state for search results
-    showTables: false,
-  };
+  constructor(props) {
+    super(props);
+    this.state = {
+      selectedTable: '',
+      tables: [],
+      data: null,
+      loading: false,
+      searchresult: [],
+      searchId: '',
+      showresult: false,
+      showTables: false,
+      insertFormData: {},
+      showInsertForm: false,
+      error: null, // New error state
+    };
+  }
 
   componentDidMount() {
     this.fetchTables();
   }
 
+  //CODE ALLOWING USER EDIT THE SEARCH BAR
+  handleSearchChange = (event) => {
+    this.setState({ searchId: event.target.value });
+  };
+
+  // CODE TO SEND THE ID TO SEARCH DATA FOR
+  handleSearchSubmit = () => {
+    this.fetchSearchresult();
+  };
+
+  //CODE TO HIDE SEARCH RESULTS
+  handleHideresult = () => {
+    this.setState({ showresult: false });
+  };
+
+  //CODE TO SHOW SEARCH RESULTS
+  handleShowresult = () => {
+    this.setState({ showresult: true });
+  };
+
+  //CODE TO CALL THE INSERT FORM WHEN INSERT DATA BUTTON IS CLICKED
+  handleInsertData = () => {
+    this.setState((prevState) => ({
+      showInsertForm: !prevState.showInsertForm,
+    }));
+  };   
+ 
+  //CODE TO DETECT THE SELECTED TABLE
+  selectTable = (table) => {
+    this.setState({
+      selectedTable: table,
+      deleteFormData: {}, // Reset delete form data
+    });
+    this.fetchData(table);
+    this.fetchTableColumns(table);
+  };  
+
+  //CODE TO FETCH ALL THE TABLES IN THE DATABASE
   fetchTables = () => {
+    // Fetch the list of tables from the server
     fetch('http://localhost:3002/tables')
       .then((response) => response.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          this.setState({ tables: data });
-
-          const { selectedTable } = this.state;
-          if (selectedTable) {
-            this.fetchTableData(selectedTable);
-          }
-        } else {
-          window.alert('Invalid response data:', data);
-        }
-      })
+      .then((tables) => {
+      this.setState({ tables }, () => {
+        // Fetch data for each table
+        tables.forEach((table) => {
+          this.fetchData(table);
+        });
+      });
+    })
       .catch((error) => {
         window.alert('Error fetching tables:', error);
       });
   };
 
-  fetchTableData = (table) => {
+  //CODE TO FETCH OR GET DATA FOR ALL TABLES
+  fetchData = (table) => {
     this.setState({ loading: true });
+
+    // Fetch data for the selected table from the server
     fetch(`http://localhost:3002/${table}`)
       .then((response) => response.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          this.setState({ data, loading: false });
-        } else if (data.results && Array.isArray(data.results)) {
-          this.setState({ data: data.results, loading: false });
-        } else {
-          window.alert('Invalid response data:', data);
-          this.setState({ data: [], loading: false });
-        }
+        this.setState({ data, loading: false });
       })
       .catch((error) => {
-        window.alert('Error fetching table data:', error);
-        this.setState({ data: [], loading: false });
+        window.alert('Error fetching data:', error);
+        this.setState({ loading: false });
       });
   };
 
-  selectTable = (table) => {
-    this.setState({ selectedTable: table });
-    this.fetchTableData(table);
-  };
+  // CODE TO SEARCH FOR DATA RELATED TO A CERTAIN ID IN THE WHOLE DATABASE
+  fetchSearchresult = () => {
+    const { tables, searchId } = this.state;
+    const searchresult = [];
 
-  insertData = () => {
-    const { selectedTable } = this.state;
-    const newData = {};
-
-    switch (selectedTable) {
-      case 'students':
-        newData.student_id = prompt('Enter student ID:');
-        newData.university_name = prompt('Enter university name:');
-        newData.arrival_year = prompt('Enter arrival year:');
-        newData.completion_year = prompt('Enter completion year:');
-        newData.year_of_study = prompt('Enter year of study:');
-        break;
-      case 'lecturers':
-        newData.lecturer_id = prompt('Enter lecturer ID:');
-        newData.university_name = prompt('Enter university name:');
-        newData.arrival_year = prompt('Enter arrival year:');
-        break;
-      case 'students/personal-info':
-        newData.spersonal_info_id = prompt("Enter student's personal info ID:");
-        newData.student_id = prompt('Enter student ID:');
-        newData.first_name = prompt('Enter first name:');
-        newData.middle_name = prompt('Enter middle name:');
-        newData.last_name = prompt('Enter last name:');
-        newData.id_number = prompt('Enter ID number:');
-        newData.district = prompt('Enter district:');
-        newData.contact = prompt('Enter contact:');
-        newData.university_name = prompt('Enter university name:');
-        break;
-      case 'lecturers/personal-info':
-        newData.lpersonal_info_id = prompt("Enter lecturer's personal info ID:");
-        newData.lecturer_id = prompt('Enter lecturer ID:');
-        newData.first_name = prompt('Enter first name:');
-        newData.middle_name = prompt('Enter middle name:');
-        newData.last_name = prompt('Enter last name:');
-        newData.id_number = prompt('Enter ID number:');
-        newData.district = prompt('Enter district:');
-        newData.contact = prompt('Enter contact:');
-        newData.university_name = prompt('Enter university name:');
-        break;
-      default:
-        window.alert('Invalid table selected');
-        return;
+    if (searchId === '') {
+      console.log('Please insert an ID');
+      return;
     }
 
-    // Only allow insert operation if the university name is NUL
-    if (newData.university_name === 'NUL') {
-      fetch(`http://localhost:3002/${selectedTable}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data: newData }), // Wrap newData in an object
-      })
+    tables.forEach((table) => {
+      fetch(`http://localhost:3002/${table}/${searchId}`)
         .then((response) => response.json())
         .then((data) => {
-          console.log('Insert success:', data);
-          this.fetchTableData(selectedTable);
+          if (Array.isArray(data) && data.length > 0) {
+            searchresult.push({ table, data });
+          }
         })
         .catch((error) => {
-          window.alert('Error performing insert operation:', error);
+          window.alert('Error fetching search result:', error);
         });
-    } else {
-      window.alert('University name must be "NUL" for insert operation');
-    }
-  }
+    });
 
-  updateData = () => {
-    const { selectedTable } = this.state;
-    const searchId = prompt('Enter the student ID to update:');
-
-    fetch(`http://localhost:3002/${selectedTable}/${searchId}`)
+    this.setState({ searchresult });
+  };
+  
+  //CODE TO GET THE SELECTED TABLE COLUMNS
+  fetchTableColumns = (table) => {
+    fetch(`http://localhost:3002/${table}/columns`)
       .then((response) => response.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const student = data[0];
-
-          // Prompt for new data
-          const newData = {};
-
-          switch (selectedTable) {
-            case 'students':
-              newData.student_id = prompt('Enter new student ID:', student.student_id);
-              newData.university_name = prompt('Enter new university name:', student.university_name);
-              newData.arrival_year = prompt('Enter new arrival year:', student.arrival_year);
-              newData.completion_year = prompt('Enter new completion year:', student.completion_year);
-              newData.year_of_study = prompt('Enter new year of study:', student.year_of_study);
-              break;
-            case 'lecturers':
-              newData.lecturer_id = prompt('Enter new lecturer ID:', student.lecturer_id);
-              newData.university_name = prompt('Enter new university name:', student.university_name);
-              newData.arrival_year = prompt('Enter new arrival year:', student.arrival_year);
-              break;
-            case 'students/personal-info':
-              newData.spersonal_info_id = prompt("Enter new student's personal info ID:", student.spersonal_info_id);
-              newData.student_id = prompt('Enter new student ID:', student.student_id);
-              newData.first_name = prompt('Enter new first name:', student.first_name);
-              newData.middle_name = prompt('Enter new middle name:', student.middle_name);
-              newData.last_name = prompt('Enter new last name:', student.last_name);
-              newData.id_number = prompt('Enter new ID number:', student.id_number);
-              newData.district = prompt('Enter new district:', student.district);
-              newData.contact = prompt('Enter new contact:', student.contact);
-              newData.university_name = prompt('Enter new university name:', student.university_name);
-              break;
-            case 'lecturers/personal-info':
-              newData.lpersonal_info_id = prompt("Enter new lecturer's personal info ID:", student.lpersonal_info_id);
-              newData.lecturer_id = prompt('Enter new lecturer ID:', student.lecturer_id);
-              newData.first_name = prompt('Enter new first name:', student.first_name);
-              newData.middle_name = prompt('Enter new middle name:', student.middle_name);
-              newData.last_name = prompt('Enter new last name:', student.last_name);
-              newData.id_number = prompt('Enter new ID number:', student.id_number);
-              newData.district = prompt('Enter new district:', student.district);
-              newData.contact = prompt('Enter new contact:', student.contact);
-              newData.university_name = prompt('Enter new university name:', student.university_name);
-              break;
-            default:
-              window.alert('Invalid table selected');
-              return;
-          }
-
-          fetch(`http://localhost:3002/${selectedTable}/${student.student_id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(newData),
-          })
-            .then((response) => response.json())
-            .then((data) => {
-              console.log('Update success:', data);
-              this.fetchTableData(selectedTable);
-            })
-            .catch((error) => {
-              window.alert('Error performing update operation:', error);
-            });
-        } else {
-          window.alert('No matching student found');
-        }
+      .then((columns) => {
+        this.setState((prevState) => ({
+          insertFormData: {
+            ...prevState.insertFormData,
+            ...columns.reduce((obj, column) => {
+              obj[column] = '';
+              return obj;
+            }, {}),
+          },
+        }));
       })
       .catch((error) => {
-        window.alert('Error fetching student data:', error);
+        window.alert('Error fetching table columns:', error);
       });
+  };  
+
+  //CODE THAT ALLOWS USER TO FILL OR CHANGE VALUES OR DATA IN THE INSERT FORM
+  handleFormInputChange = (event) => {
+    const { name, value } = event.target;
+    const { insertFormData } = this.state;
+    this.setState({
+      insertFormData: {
+        ...insertFormData,
+        [name]: value,
+      },
+    });
   };
 
-  deleteData = () => {
-    const { selectedTable } = this.state;
-    const searchId = prompt('Enter the ID of the record to delete:');
+  //CODE CALLED AFTER FILLING THE INSERT FORM
+  handleFormSubmit = (event) => {
+    event.preventDefault(); // Prevent the default form submission behavior
+    
+    const { insertFormData, selectedTable } = this.state;
   
-    if (!searchId) {
-      // User canceled or didn't provide an ID
+    // Check if university_id is 'NUL'
+    if (insertFormData.university_id !== 'NUL' || '') {
+      console.log('Please enter the correct university_id: NUL');
       return;
     }
   
-    fetch(`http://localhost:3002/${selectedTable}/${searchId}`, {
+    // Send the form data to the server for insertion
+    fetch(`http://localhost:3002/${selectedTable}`, {
+      method: 'POST',
+      body: JSON.stringify(insertFormData),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log('Data inserted successfully');
+  
+        // Update the state with the new data
+        this.setState((prevState) => ({
+          data: [...prevState.data, data], // assuming the response is the newly inserted data object
+          showInsertForm: false, // Hide the insert form after submitting
+        }));
+      })
+      .catch((error) => {
+        console.log('Error inserting data:', error);
+      });
+  }
+  
+  // CODE TO DELETE DATA FROM THE DATABASE
+  deleteData = (table, id) => {
+    fetch(`http://localhost:3003/${table}/${id}`, {
       method: 'DELETE',
     })
       .then((response) => {
-        if (!response.ok) {
-          throw new Error('Delete operation failed');
+        if (response.ok) {
+          console.log(`Record with ID ${id} deleted successfully from ${table}`);
+          // Update the state by removing the deleted record from the data array
+          this.setState((prevState) => ({
+            data: prevState.data.filter((record) => record.id !== id),
+          }));
+        } else {
+          console.log('Delete request failed:', response.status);
         }
-        return response.json();
-      })
-      .then((data) => {
-        console.log('Delete success:', data);
-        this.fetchTableData(selectedTable);
       })
       .catch((error) => {
-        window.alert('An error occurred while deleting the record.', error);
+        console.log('Error deleting data:', error);
       });
-  };    
-
-handleSearchChange = (event) => {
-  this.setState({ searchId: event.target.value });
-};
-
-handleSearchSubmit = () => {
-  const { data, searchId } = this.state;
-
-  if (data) { // Add a null check for the data object
-    const searchResults = data.filter((row) => row.id === searchId);
-    this.setState({ searchResults });
+  };
+  
+  // CODE TO PROMPT USER FOR ID AND CALL DELETE METHOD
+  deleteDataPrompt = () => {
+    const id = prompt('Enter the ID of the record you wish to delete:');
+    const { selectedTable } = this.state;
+    if (id) {
+      this.deleteData(selectedTable, id);
+    }
+  }; 
+  
+  //FORM FOR INSERTING INTO THE DATABASE
+  renderInsertForm = () => {
+    const { selectedTable, insertFormData,  showInsertForm  } = this.state;
+    const tableColumns = this.getTableColumns(selectedTable);
+  
+    if (!showInsertForm) {
+      return null; // Don't render the insert form
+    }
+  
+    return (
+      <div className="insert-form">
+        <h3>Insert Data for {selectedTable}</h3>
+        <form onSubmit={this.handleFormSubmit}>
+          {tableColumns.map((column) => (
+            <div key={column}>
+              <label htmlFor={column}>{column}</label>
+              <input
+                type="text"
+                id={column}
+                name={column}
+                value={insertFormData[column] || ''}
+                onChange={this.handleFormInputChange}
+              />
+            </div>
+          ))}
+          <button type="submit">Insert Data</button>
+        </form>
+      </div>
+    );
+  };
+// CODE TO UPDATE DATA IN THE DATABASE
+updateData = () => {
+  const { selectedTable } = this.state;
+  const id = prompt('Enter the ID of the record you want to update:');
+  if (!id) {
+    return;
   }
+  const updateFormData = {};
+
+  const tableColumns = this.getTableColumns(selectedTable);
+  tableColumns.forEach((column) => {
+    if (column !== 'ID' && column !== 'University') {
+      const value = prompt(`Enter the new value for ${column}:`);
+      if (value) {
+        updateFormData[column] = value;
+      }
+    }
+  });
+
+  fetch(`http://localhost:3002/${selectedTable}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updateFormData),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+    .then((response) => {
+      if (response.ok) {
+        console.log(`Record with ID ${id} updated successfully in ${selectedTable}`);
+        // Fetch updated data for the selected table
+        this.fetchData(selectedTable);
+      } else {
+        console.log('Update request failed:', response.status);
+      }
+    })
+    .catch((error) => {
+      console.log('Error updating data:', error);
+    });
 };
 
-handleHideResults = () => {
-  this.setState({ showResults: false });
-};
+  //DYNAMIC RETRIEVAL OF THE SELECTED TABLE
+  getTableColumns = (table) => {
+    const { data } = this.state;
+    if (data && data.length > 0) {
+      return Object.keys(data[0]);
+    }
+    return [];
+  };  
+  
+  render() {
+    const {
+      selectedTable,
+      tables,
+      data,
+      loading,
+      searchresult,
+      searchId,
+      showresult,
+      showTables,
+    } = this.state;
 
-handleShowResults = () => {
-  this.setState({ showResults: true });
-};
+    const handleLogout = () => {
+      // Perform logout logic here
+      // For example, clear any authentication token or session data
 
+      // Redirect back to App.js or any desired page
+      window.location.href = '/'; // Assuming App.js is the root page
+    };
 
-render() {
-  const { selectedTable, tables, data, loading, searchResults, searchId, showResults, showTables } = this.state;
+    const filteredData =
+      data && data.filter((row) => row.university_id === 'NUL'); // Add null check
 
-  const handleLogout = () => {
-    // Perform logout logic here
-    // For example, clear any authentication token or session data
+    const handleShowTables = () => {
+      this.setState({ showTables: true });
+    };
 
-    // Redirect back to App.js or any desired page
-    window.location.href = '/'; // Assuming App.js is the root page
-  };
+    const handleHideTables = () => {
+      this.setState({ showTables: false });
+    };
 
-  const filteredData = data && data.filter((row) => row.university_name === 'NUL'); // Add null check
-
-  const handleShowTables = () => {
-    this.setState({ showTables: true });
-  };
-
-  const handleHideTables = () => {
-    this.setState({ showTables: false });
-  };
-
-  return (
-    <div className="App">
-      <div className="NulApp-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <h1>NUL Database Management System</h1>
-        <div className="search-container">
-          <input type="text" value={searchId} onChange={this.handleSearchChange} placeholder="Search by ID" />
-          <button onClick={this.handleSearchSubmit}>Search</button>
-        </div>
-        {searchResults.length > 0 && (
-          <div className="search-results">
-            <h2>Search Results</h2>
-            <table>
-              <thead>
-                <tr>
-                  {Object.keys(searchResults[0]).map((key) => (
-                    <th key={key}>{key}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {searchResults.map((row, index) => (
-                  <tr key={index}>
-                    {Object.values(row).map((value, index) => (
-                      <td key={index}>{value}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    return (
+      <div className="App">
+        <div className="NulApp-header">
+          <img src={logo} className="App-logo" alt="logo" />
+          <h1>NUL Database Management System</h1>
+          <div className="search-container">
+            <input
+              type="text"
+              value={searchId}
+              onChange={this.handleSearchChange}
+              placeholder="Search by ID"
+            />
+            <button onClick={this.handleSearchSubmit}>Search</button>
           </div>
-        )}
-        {showResults && searchResults.length === 0 && (
-          <div className="search-results">
-            <p>No matching data found.</p>
-          </div>
-        )}
-        {!showResults && (
-          <div className="show-results-button">
-            <button onClick={this.handleShowResults}>Show Results</button>
-          </div>
-        )}
-        {showResults && (
-          <div className="hide-results-button">
-            <button onClick={this.handleHideResults}>Hide Results</button>
-          </div>
-        )}
-        <div className="more-actions">
-          <button onClick={this.fetchTables}>Refresh Tables</button>
-          <button onClick={handleLogout}>Logout</button>
-        </div>
-        <div className="table-list">
-          <div className="toggle-tables">
+          {searchresult.length > 0 && showresult && (
+            <div className="search-result">
+              <h2>Search result</h2>
+              {searchresult.map((result) => (
+                <div key={result.table}>
+                  <h3>Table: {result.table}</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        {Object.keys(result.data[0])
+                          .filter((key) => key !== 'university_id') // Exclude university_id column
+                          .map((key) => (
+                            <th key={key}>{key}</th>
+                          ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.data.map((row, index) => (
+                        <tr key={index}>
+                          {Object.entries(row)
+                            .filter(([key]) => key !== 'university_id') // Exclude university_id column
+                            .map(([key, value], index) => (
+                              <td key={index}>{value}</td>
+                            ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+          {showresult && searchresult.length === 0 && (
+            <div className="search-result">
+              <p>Please enter ID for the record you want to search.</p>
+            </div>
+          )}
+          {!showresult && (
+            <div className="show-result-button" style={{ marginTop: '10px' }}>
+              <button onClick={this.handleShowresult}>Show result</button>
+            </div>
+          )}
+          {showresult && (
+            <div className="hide-result-button" style={{ marginTop: '10px' }}>
+              <button onClick={this.handleHideresult}>Hide result</button>
+            </div>
+          )}
+          <div className="more-actions" style={{ marginTop: '10px' }}>
+            <button
+              onClick={this.fetchTables}
+              style={{ fontSize: '13px', padding: '7px 7px', marginRight: '94px' }}
+            >
+              Refresh Tables
+            </button>
             {!showTables ? (
-              <button onClick={handleShowTables}>Show Tables</button>
+              <button
+                onClick={handleShowTables}
+                style={{ fontSize: '13px', padding: '7px 7px', marginRight: '140px' }}
+              >
+                Show Tables
+              </button>
             ) : (
-              <button onClick={handleHideTables}>Hide Tables</button>
+              <button
+                onClick={handleHideTables}
+                style={{ fontSize: '13px', padding: '7px 7px', marginRight: '140px' }}
+              >
+                Hide Tables
+              </button>
             )}
+            <button
+              onClick={handleLogout}
+              style={{ fontSize: '13px', padding: '7px 7px' }}
+            >
+              Logout
+            </button>
           </div>
           {showTables && (
             <ul>
-              {tables.map((table) => (
-                <li key={table} onClick={() => this.selectTable(table)}>
-                  {table}
-                  {selectedTable === table && (
-                    <div className="selected-table">
-                      <h2>{selectedTable}</h2>
-                      {loading ? (
-                        <div className="loading">Loading...</div>
-                      ) : filteredData && filteredData.length > 0 ? (
-                        <table>
-                          <thead>
-                            <tr>
-                              {Object.keys(filteredData[0]).map((key) => (
-                                <th key={key}>{key}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredData.map((row, index) => (
-                              <tr key={index}>
-                                {Object.values(row).map((value, index) => (
-                                  <td key={index}>{value}</td>
-                                ))}
+              {tables
+                .filter((table) => table !== 'pg_dist_object')
+                .filter((table) => table !== 'university')
+                .map((table) => (
+                  <li key={table} onClick={() => this.selectTable(table)}>
+                    {table}
+                    {selectedTable === table && (
+                      <div className="selected-table">
+                        <div className="table-actions">
+                          <button
+                            onClick={this.handleInsertData}
+                            style={{ fontSize: '13px', padding: '7px 7px', marginRight: '100px' }}
+                          >
+                            Insert Data
+                          </button>
+                          {this.renderInsertForm()} {/* Render the insert form */}
+                          <button
+                          onClick={this.updateData} // Add updateData handler to the update button
+                          style={{ fontSize: '13px', padding: '7px 7px', marginRight: '100px' }}
+                        >
+                          Update Data
+                        </button>
+                          <button
+                            onClick={this.deleteDataPrompt}
+                            style={{ fontSize: '13px', padding: '7px 7px' }}
+                          >
+                            Delete Data
+                          </button>
+                        </div>
+                        {loading ? (
+                          <div className="loading">Loading...</div>
+                        ) : filteredData && filteredData.length > 0 ? (
+                          <table>
+                            <thead>
+                              <tr>
+                                {Object.keys(filteredData[0])
+                                  .filter((key) => key !== 'university_id') // Exclude 'university_id' column
+                                  .map((key) => (
+                                    <th key={key}>{key}</th>
+                                  ))}
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="no-data">No data available in this table</div>
-                      )}
-                      <div className="table-actions">
-                        <button onClick={this.insertData}>Insert Data</button>
-                        <button onClick={this.updateData}>Update Data</button>
-                        <button onClick={this.deleteData}>Delete Data</button>
+                            </thead>
+                            <tbody>
+                              {filteredData.map((row, index) => (
+                                <tr key={index}>
+                                  {Object.entries(row)
+                                    .filter(([key]) => key !== 'university_id') // Exclude 'university_id' column
+                                    .map(([key, value], index) => (
+                                      <td key={index}>{value}</td>
+                                    ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="no-data"></div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </li>
-              ))}
+                    )}
+                  </li>
+                ))}
             </ul>
           )}
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 }
-}
-  
+
 export default NulApp;
